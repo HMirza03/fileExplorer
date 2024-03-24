@@ -1,0 +1,180 @@
+type ftree = Dir of string * ftree list
+           | File of string
+
+type path = string list
+
+(* The example filesystem given in the question *)
+let fs = Dir ("root",
+              [ Dir ("desktop", [ Dir ("emptydir", [])
+                                ; File "doc1"
+                                ; File "notes"
+                                ])
+              ; Dir ("documents", [ File "notes"
+                                  ; File "text1"
+                                  ])
+              ; File "file1"
+              ; File "file2"
+              ])
+
+(* Two further examples of (invalid) filesystems, useful for testing *)
+let fs2 = Dir ("root",
+               [ Dir ("desktop", [ File "f2" ])
+               ; Dir ("desktop", [ File "doc1"
+                                 ; File "f2"
+                                 ; File "doc3"
+                                 ])
+               ; File "f1"
+               ; File "f2"
+               ])
+
+let fs3 = Dir ("root",
+               [ Dir ("desktop", [ File "f2" ])
+               ; Dir ("documents", [ File "doc1"
+                                   ; File "f2"
+                                   ; File "f2"
+                                   ])
+               ; File "f1"
+               ; File "f2"
+               ])
+
+(*Creating helper functions that we shall implement in our code*)
+
+(*Helper function 'append'*)
+let rec append list1 list2 =
+  match list1 with 
+  |[] -> list2
+  | head :: tail -> head :: append tail list2
+(*Appending two lists together through the use of a recursive function*)
+
+(*Helper function 'CountFiles'*)
+let rec countFiles n f =
+  let rec countFilesInList n list =
+    match list with
+    | [] -> 0
+    | x :: xs -> countFiles n x + countFilesInList n xs
+  in
+  match f with
+  | File fileName -> if fileName = n then 1 else 0
+  | Dir (_, list) -> countFilesInList n list
+(*Counting the number of files present within the list, considering the name and
+  Directory*)
+
+(*Helper function 'CountDir'*)
+let rec countDir f =
+  match f with
+  | File _ -> 0
+  | Dir (_, list) ->
+      let rec countListDir accumulator lst =
+        match lst with
+        | [] -> accumulator
+        | x :: xs -> countDir x + countListDir accumulator xs
+      in
+      countListDir 1 list
+(*Counting the directories present within the file, through a list and accumulator value*)
+
+(*Helper function 'collectTreePaths' and 'collectSubTreePaths'*)
+let rec collectTreePaths tree pathCurrent =
+  match tree with
+  |File name -> [(append pathCurrent[name])]
+  |Dir (dirname, subTree) -> collectSubTreePaths subTree (append pathCurrent[dirname])
+and collectSubTreePaths subTree pathCurrent =
+  match subTree with 
+  | [] -> []
+  | subTree :: rest -> append (collectTreePaths subTree pathCurrent) (collectSubTreePaths rest pathCurrent)
+(*Combining two helper functions to collect the tree paths in a tree, as well as a subtree, through appending*)
+
+(*Helper function 'member'*)
+let rec member v list =
+  match list with
+  | [] -> false
+  | head :: tail -> if head = v then true 
+  else 
+    member v tail
+(*Checking if v is a member*)
+
+(*Helper functions 'pathFinder', 'listPath' and 'existFile'*)
+let rec pathFinder p f =
+  match (p, f) with
+  | ([], _) -> false
+  | [v], Dir(name, list) -> v = name || existFile v list
+  | v :: xs, Dir(name, list) when v = name -> listPath xs list
+  | _ :: _, Dir(_, list) -> listPath p list
+  | [v], File fileName -> v = fileName
+  | (_, _) -> false
+(*Finding a path with a path and file, checking through all directories*)
+
+ and listPath p list =
+    match list with
+    | [] -> false
+    | v :: xs -> pathFinder p v || listPath p xs
+  (*Helps us in finding a path*)
+    
+  and existFile fileName list =
+    match list with
+    | [] -> false
+    | File fs :: xs -> fileName = fs || existFile fileName xs
+    | _ :: xs -> existFile fileName xs
+  (*Checking for the existence of a file*)
+
+(*Helper function 'checkForDupes'*)
+let rec checkForDupes accumulator rem =
+  match rem with
+  | [] -> true
+  | head :: tail ->
+      if member head accumulator then
+        false
+      else
+        checkForDupes(head :: accumulator) tail
+(*Checks for dupes present*)
+
+(*Helper function 'all'*)
+let rec all p list = 
+  match list with 
+  |[] -> true
+  |head :: tail -> if p head then all p tail else false
+(*The function takes two arguments, a predicate function p and a list. It recursively checks if the 
+  predicate p holds for every element that is present in the list.*)
+
+(*Helper function 'folderNames'*)
+let rec folderNames subfolder =
+  match subfolder with
+  |[]->[]
+  |Dir (fileName, _) :: tail -> fileName :: folderNames tail
+  |File fs :: tail -> fs :: folderNames tail
+(*Checking folderNames for the subfolders, through going through directories and files*)
+
+
+
+
+
+let numFiles n f = countFiles n f
+(*Using out countFiles function to count the number of files*)
+
+let numDirs f = countDir f
+(*Counting the number of directories through the countDir helper that counts directories*)
+
+
+let validpath p f = pathFinder p f
+(*Using our pathFinder helper to check if a given path is valid or not*)
+
+
+
+let nodupes xs = checkForDupes[] xs
+(*Checking for any dupes through our checkForDupes function for a lisr*)
+
+let rec validFTree f =
+  let rec allValidFTree subfolder =
+    match subfolder with
+    | [] -> true
+    | hd :: tl -> validFTree hd && allValidFTree tl
+  in
+  match f with
+  | File _ -> true
+  | Dir (_, subfolder) -> let fs = folderNames subfolder in nodupes fs && allValidFTree subfolder
+(*Seeing if a tree is valid or not, through checking the directories and subfolders.*)
+
+
+
+let allFiles f = collectTreePaths f []
+(*allFiles uses our collectTreePaths function defined above*)
+
